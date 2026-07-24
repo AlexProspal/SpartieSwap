@@ -3,35 +3,58 @@
 {% block title %}{{ listing.title }} | SpartieSwap{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-  <div class="col-lg-8">
-    <a href="{% url 'listings:list' %}" class="small">
-      ← Back to listings
-    </a>
+<a class="d-inline-block mb-3" href="{% url 'listings:list' %}">
+  ← Back to listings
+</a>
 
-    <div class="bg-white border rounded p-4 mt-3">
-      <h1 class="h3">{{ listing.title }}</h1>
-      <p class="text-secondary">{{ listing.description }}</p>
-
-      <dl class="row mb-0">
-        <dt class="col-sm-4">Category</dt>
-        <dd class="col-sm-8">{{ listing.get_category_display }}</dd>
-
-        <dt class="col-sm-4">Condition</dt>
-        <dd class="col-sm-8">{{ listing.get_condition_display }}</dd>
-
-        <dt class="col-sm-4">Pickup area</dt>
-        <dd class="col-sm-8">{{ listing.get_pickup_area_display }}</dd>
-
-        <dt class="col-sm-4">Available dates</dt>
-        <dd class="col-sm-8">
-          {{ listing.available_from }}–{{ listing.available_until }}
-        </dd>
-
-        <dt class="col-sm-4">Owner</dt>
-        <dd class="col-sm-8">{{ listing.owner.get_short_name }}</dd>
-      </dl>
+<div class="row g-4">
+  {% if listing.image %}
+    <div class="col-md-5">
+      <img
+        src="{{ listing.image.url }}"
+        class="img-fluid rounded border"
+        alt="Photo of {{ listing.title }}"
+      >
     </div>
+  {% endif %}
+
+  <div class="{% if listing.image %}col-md-7{% else %}col-12{% endif %}">
+    <h1>{{ listing.title }}</h1>
+    <p>{{ listing.description }}</p>
+
+    <dl class="row">
+      <dt class="col-sm-4">Category</dt>
+      <dd class="col-sm-8">{{ listing.get_category_display }}</dd>
+
+      <dt class="col-sm-4">Condition</dt>
+      <dd class="col-sm-8">{{ listing.get_condition_display }}</dd>
+
+      <dt class="col-sm-4">Pickup area</dt>
+      <dd class="col-sm-8">{{ listing.get_pickup_area_display }}</dd>
+
+      <dt class="col-sm-4">Available dates</dt>
+      <dd class="col-sm-8">
+        {{ listing.available_from }}–{{ listing.available_until }}
+      </dd>
+
+      <dt class="col-sm-4">Maximum loan</dt>
+      <dd class="col-sm-8">
+        {{ listing.maximum_loan_days }}
+        day{{ listing.maximum_loan_days|pluralize }}
+      </dd>
+
+      <dt class="col-sm-4">Owner</dt>
+      <dd class="col-sm-8">{{ listing.owner.get_short_name }}</dd>
+    </dl>
+
+    {% if listing.owner == user %}
+      <a
+        class="btn btn-dark"
+        href="{% url 'listings:owner-controls' listing.pk %}"
+      >
+        Owner controls
+      </a>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

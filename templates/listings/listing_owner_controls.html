@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Owner Controls | {{ listing.title }} | SpartieSwap{% endblock %}
+
+{% block content %}
+<a class="d-inline-block mb-3" href="{% url 'listings:list' %}">
+  ← Back to listings
+</a>
+
+<div class="bg-white border rounded p-4">
+  <p class="text-uppercase text-secondary small fw-semibold mb-1">
+    Owner controls
+  </p>
+  <h1 class="h3">{{ listing.title }}</h1>
+
+  <p class="text-secondary">
+    Only the lessor who created this listing can access this page.
+  </p>
+
+  <dl class="row mb-4">
+    <dt class="col-sm-4">Status</dt>
+    <dd class="col-sm-8">
+      {% if listing.is_active %}Active{% else %}Inactive{% endif %}
+    </dd>
+
+    <dt class="col-sm-4">Availability</dt>
+    <dd class="col-sm-8">
+      {{ listing.available_from }}–{{ listing.available_until }}
+    </dd>
+
+    <dt class="col-sm-4">Maximum loan</dt>
+    <dd class="col-sm-8">
+      {{ listing.maximum_loan_days }}
+      day{{ listing.maximum_loan_days|pluralize }}
+    </dd>
+  </dl>
+
+  <div class="alert alert-secondary mb-0">
+    Editing, deactivation, reactivation, and deletion are part of Feature 2.
+    This protected page establishes the owner-only access required by Story 1.1.
+  </div>
+</div>
+{% endblock %}

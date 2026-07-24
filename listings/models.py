@@ -1,4 +1,6 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 
 from accounts.constants import CampusArea
@@ -43,6 +45,15 @@ class Listing(models.Model):
     )
     available_from = models.DateField()
     available_until = models.DateField()
+    maximum_loan_days = models.PositiveIntegerField(
+        default=7,
+        validators=[MinValueValidator(1)],
+        help_text="Longest number of days one borrower may keep the item.",
+    )
+    image = models.ImageField(
+        upload_to="listing_images/",
+        blank=True,
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -52,3 +63,36 @@ class Listing(models.Model):
 
     def __str__(self):
         return self.title
+
+    def clean(self):
+        super().clean()
+
+        if (
+            self.available_from
+            and self.available_until
+            and self.available_from > self.available_until
+        ):
+            raise ValidationError(
+                {
+                    "available_until": (
+                        "The availability end date must be on or after the start date."
+                    )
+                }
+            )
+
+        if (
+            self.available_from
+            and self.available_until
+            and self.maximum_loan_days
+            and self.available_from <= self.available_until
+        ):
+            availability_days = (self.available_until - self.available_from).days + 1
+            if self.maximum_loan_days > availability_days:
+                raise ValidationError(
+                    {
+                        "maximum_loan_days": (
+                            "The maximum loan length cannot exceed the listing's "
+                            "availability period."
+                        )
+                    }
+                )
