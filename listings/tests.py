@@ -17,7 +17,6 @@ class ListingViewsTests(TestCase):
             display_name="Test Borrower",
         )
         self.client.force_login(self.user)
-
         self.active_listing = Listing.objects.create(
             owner=self.user,
             title="TI-84 Calculator",
@@ -29,7 +28,6 @@ class ListingViewsTests(TestCase):
             available_until=date(2026, 8, 1),
             is_active=True,
         )
-
         self.inactive_listing = Listing.objects.create(
             owner=self.user,
             title="Inactive Textbook",
@@ -44,6 +42,7 @@ class ListingViewsTests(TestCase):
 
     def test_browse_page_requires_login(self):
         self.client.logout()
+
         response = self.client.get(reverse("listings:list"))
 
         self.assertEqual(response.status_code, 302)
@@ -79,6 +78,7 @@ class ListingViewsTests(TestCase):
         self.assertContains(response, detail_url)
 
         detail_response = self.client.get(detail_url)
+
         self.assertEqual(detail_response.status_code, 200)
         self.assertContains(detail_response, self.active_listing.description)
 
@@ -109,4 +109,137 @@ class ListingViewsTests(TestCase):
         )
 
         response_after = self.client.get(reverse("listings:list"))
+
         self.assertContains(response_after, title)
+
+
+class ListingCreationTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.owner = user_model.objects.create_user(
+            email="lessor@case.edu",
+            password="TestPassword123!",
+            display_name="Test Lessor",
+        )
+        self.other_user = user_model.objects.create_user(
+            email="other@case.edu",
+            password="TestPassword123!",
+            display_name="Other Student",
+        )
+        self.valid_data = {
+            "title": "Cordless Drill",
+            "description": "A working drill with a charged battery.",
+            "category": ItemCategory.TOOLS,
+            "condition": ItemCondition.GOOD,
+            "pickup_area": CampusArea.CASE_QUAD,
+            "available_from": "2026-07-25",
+            "available_until": "2026-08-01",
+            "maximum_loan_days": 3,
+        }
+
+    def test_create_listing_requires_login(self):
+        response = self.client.get(reverse("listings:create"))
+
+        expected_url = (
+            f"{reverse('accounts:login')}?next={reverse('listings:create')}"
+        )
+        self.assertRedirects(response, expected_url)
+
+    def test_owner_can_publish_valid_listing(self):
+        self.client.force_login(self.owner)
+
+        response = self.client.post(
+            reverse("listings:create"),
+            self.valid_data,
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        listing = Listing.objects.get(title="Cordless Drill")
+        self.assertEqual(listing.owner, self.owner)
+        self.assertContains(response, "Cordless Drill")
+
+    def test_image_is_optional(self):
+        self.client.force_login(self.owner)
+
+        self.client.post(reverse("listings:create"), self.valid_data)
+
+        listing = Listing.objects.get(title="Cordless Drill")
+        self.assertFalse(listing.image)
+
+    def test_missing_required_information_shows_clear_error(self):
+        self.client.force_login(self.owner)
+        invalid_data = self.valid_data.copy()
+        invalid_data["title"] = ""
+
+        response = self.client.post(reverse("listings:create"), invalid_data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFormError(
+            response.context["form"],
+            "title",
+            "This field is required.",
+        )
+        self.assertFalse(Listing.objects.exists())
+
+    def test_invalid_availability_range_shows_clear_error(self):
+        self.client.force_login(self.owner)
+        invalid_data = self.valid_data.copy()
+        invalid_data["available_from"] = "2026-08-01"
+        invalid_data["available_until"] = "2026-07-25"
+
+        response = self.client.post(reverse("listings:create"), invalid_data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFormError(
+            response.context["form"],
+            "available_until",
+            "The availability end date must be on or after the start date.",
+        )
+        self.assertFalse(Listing.objects.exists())
+
+    def test_maximum_loan_length_cannot_exceed_availability(self):
+        self.client.force_login(self.owner)
+        invalid_data = self.valid_data.copy()
+        invalid_data["maximum_loan_days"] = 20
+
+        response = self.client.post(reverse("listings:create"), invalid_data)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFormError(
+            response.context["form"],
+            "maximum_loan_days",
+            (
+                "The maximum loan length cannot exceed the listing's "
+                "availability period."
+            ),
+        )
+        self.assertFalse(Listing.objects.exists())
+
+    def test_only_owner_can_access_owner_controls(self):
+        listing = Listing.objects.create(
+            owner=self.owner,
+            title="Calculator",
+            description="A calculator.",
+            category=ItemCategory.COURSE_MATERIALS,
+            condition=ItemCondition.GOOD,
+            pickup_area=CampusArea.CASE_QUAD,
+            available_from=date(2026, 7, 25),
+            available_until=date(2026, 8, 1),
+            maximum_loan_days=3,
+        )
+        owner_url = reverse(
+            "listings:owner-controls",
+            kwargs={"pk": listing.pk},
+        )
+
+        self.client.force_login(self.owner)
+        owner_response = self.client.get(owner_url)
+
+        self.assertEqual(owner_response.status_code, 200)
+        self.assertContains(owner_response, "Owner controls")
+
+        self.client.force_login(self.other_user)
+        other_response = self.client.get(owner_url)
+
+        self.assertEqual(other_response.status_code, 404)

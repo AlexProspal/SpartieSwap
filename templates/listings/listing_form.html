@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}List an Item | SpartieSwap{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <div class="bg-white border rounded p-4">
+      <h1 class="h3 mb-2">List an item</h1>
+      <p class="text-secondary mb-4">
+        Describe the item, where it can be picked up, and when it is available.
+      </p>
+
+      <form method="post" enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        {{ form|crispy }}
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+          <a class="btn btn-outline-secondary" href="{% url 'listings:list' %}">
+            Cancel
+          </a>
+          <button class="btn btn-dark" type="submit">Publish listing</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
