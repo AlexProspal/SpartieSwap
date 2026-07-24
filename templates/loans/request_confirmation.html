@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}Request Submitted | SpartieSwap{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="bg-white border rounded p-4">
+      <p class="text-uppercase text-secondary small fw-semibold mb-1">
+        Request submitted
+      </p>
+      <h1 class="h3">{{ loan.listing.title }}</h1>
+      <p>
+        Your request is pending. The lessor can now view it in their requests
+        page.
+      </p>
+
+      <dl class="row">
+        <dt class="col-sm-4">Status</dt>
+        <dd class="col-sm-8">{{ loan.get_status_display }}</dd>
+
+        <dt class="col-sm-4">Requested dates</dt>
+        <dd class="col-sm-8">
+          {{ loan.start_date }}–{{ loan.return_date }}
+        </dd>
+
+        <dt class="col-sm-4">Lessor</dt>
+        <dd class="col-sm-8">{{ loan.listing.owner.get_short_name }}</dd>
+
+        <dt class="col-sm-4">Message</dt>
+        <dd class="col-sm-8">
+          {% if loan.message %}
+            {{ loan.message }}
+          {% else %}
+            No coordination message was included.
+          {% endif %}
+        </dd>
+      </dl>
+
+      <a
+        class="btn btn-outline-dark"
+        href="{% url 'listings:detail' loan.listing.pk %}"
+      >
+        Back to item
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
