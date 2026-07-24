@@ -20,3 +20,10 @@ form div + div {
   font-size: 0.8125rem;
   color: var(--bs-secondary-color);
 }
+
+/* Arrows between the steps on the borrowing progress list. */
+.borrowing-progress li:not(:last-child)::after {
+  content: "↓";
+  display: block;
+  color: var(--bs-secondary-color);
+}
