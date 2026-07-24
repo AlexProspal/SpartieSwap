@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Pending Requests | SpartieSwap{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 mb-1">Pending requests</h1>
+  <p class="text-secondary mb-0">
+    Requests submitted for items you have listed.
+  </p>
+</div>
+
+<div class="row g-3">
+  {% for loan in loan_requests %}
+    <div class="col-lg-6">
+      <article class="card h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between gap-3 mb-3">
+            <div>
+              <h2 class="h5 mb-1">{{ loan.listing.title }}</h2>
+              <p class="text-secondary mb-0">
+                Requested by {{ loan.borrower.get_short_name }}
+              </p>
+            </div>
+            <span class="badge text-bg-warning">
+              {{ loan.get_status_display }}
+            </span>
+          </div>
+
+          <dl class="row small mb-3">
+            <dt class="col-5">Start date</dt>
+            <dd class="col-7">{{ loan.start_date }}</dd>
+
+            <dt class="col-5">Return date</dt>
+            <dd class="col-7">{{ loan.return_date }}</dd>
+
+            <dt class="col-5">Requested</dt>
+            <dd class="col-7">{{ loan.requested_at }}</dd>
+          </dl>
+
+          <p class="mb-0">
+            <strong>Message:</strong>
+            {% if loan.message %}
+              {{ loan.message }}
+            {% else %}
+              No message included.
+            {% endif %}
+          </p>
+        </div>
+      </article>
+    </div>
+  {% empty %}
+    <div class="col-12">
+      <div class="bg-white border rounded p-4 text-center">
+        <p class="mb-0">You do not have any pending requests.</p>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}
