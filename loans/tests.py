@@ -9,7 +9,7 @@ from django.utils import timezone
 from accounts.constants import CampusArea
 from listings.models import ItemCategory, ItemCondition, Listing
 
-from .models import Loan, LoanStatus
+from .models import LESSOR_TRANSITIONS, Loan, LoanStatus
 
 User = get_user_model()
 
@@ -316,6 +316,16 @@ class LoanModelTests(TestCase):
         self.loan.refresh_from_db()
         self.assertEqual(self.loan.status, LoanStatus.REQUESTED)
 
+    def test_lessor_can_only_complete_a_returned_loan(self):
+        with self.assertRaises(ValidationError):
+            self.loan.transition_to(LoanStatus.COMPLETED, LESSOR_TRANSITIONS)
+
+        self.loan.status = LoanStatus.RETURNED
+        self.loan.save()
+        self.loan.transition_to(LoanStatus.COMPLETED, LESSOR_TRANSITIONS)
+
+        self.assertEqual(self.loan.status, LoanStatus.COMPLETED)
+
 
 class MyBorrowingViewTests(TestCase):
     def setUp(self):
@@ -527,3 +537,122 @@ class DeclinedAndCompletedDisplayTests(TestCase):
         # Approving belongs to the lessor, so it must not be reachable here.
         with self.assertRaises(ValidationError):
             self.loan.transition_to(LoanStatus.APPROVED)
+
+
+class MyLendingViewTests(TestCase):
+    def setUp(self):
+        self.lessor = User.objects.create_user(
+            email="lessor@case.edu",
+            password="TestPassword123!",
+            display_name="Test Lessor",
+        )
+        self.borrower = User.objects.create_user(
+            email="borrower@case.edu",
+            password="TestPassword123!",
+            display_name="Test Borrower",
+        )
+        self.other_lessor = User.objects.create_user(
+            email="other-lessor@case.edu",
+            password="TestPassword123!",
+            display_name="Other Lessor",
+        )
+        self.listing = self.create_listing(self.lessor, "TI-84 Calculator")
+        self.loan = Loan.objects.create(
+            listing=self.listing,
+            borrower=self.borrower,
+            start_date=date(2026, 7, 26),
+            return_date=date(2026, 7, 28),
+            status=LoanStatus.RETURNED,
+        )
+
+    def create_listing(self, owner, title):
+        return Listing.objects.create(
+            owner=owner,
+            title=title,
+            description="Available to borrow.",
+            category=ItemCategory.ELECTRONICS,
+            condition=ItemCondition.GOOD,
+            pickup_area=CampusArea.CASE_QUAD,
+            available_from=date(2026, 7, 25),
+            available_until=date(2026, 8, 1),
+        )
+
+    def test_dashboard_only_shows_current_users_active_lending_exchanges(self):
+        other_listing = self.create_listing(self.other_lessor, "USB-C Charger")
+        Loan.objects.create(
+            listing=other_listing,
+            borrower=self.borrower,
+            start_date=date(2026, 7, 26),
+            return_date=date(2026, 7, 28),
+            status=LoanStatus.RETURNED,
+        )
+        completed_listing = self.create_listing(
+            self.lessor,
+            "Completed Calculator",
+        )
+
+        completed_loan = Loan.objects.create(
+            listing=completed_listing,
+            borrower=self.borrower,
+            start_date=date(2026, 7, 26),
+            return_date=date(2026, 7, 28),
+            status=LoanStatus.COMPLETED,
+        )
+        self.client.force_login(self.lessor)
+
+        response = self.client.get(reverse("loans:my-lending"))
+
+        self.assertContains(response, self.listing.title)
+        self.assertContains(response, self.borrower.display_name)
+        self.assertContains(response, "Case Quad")
+        self.assertNotContains(response, other_listing.title)
+        self.assertNotContains(response, completed_listing.title)
+
+    def test_confirm_return_button_only_appears_for_returned_loans(self):
+        self.client.force_login(self.lessor)
+
+        response = self.client.get(reverse("loans:my-lending"))
+        self.assertContains(response, "Confirm return")
+
+        self.loan.status = LoanStatus.PICKED_UP
+        self.loan.save()
+        response = self.client.get(reverse("loans:my-lending"))
+        self.assertNotContains(response, "Confirm return")
+
+    def test_owner_can_confirm_return(self):
+        self.client.force_login(self.lessor)
+
+        response = self.client.post(
+            reverse("loans:confirm-return", kwargs={"pk": self.loan.pk})
+        )
+
+        self.assertRedirects(response, reverse("loans:my-lending"))
+        self.loan.refresh_from_db()
+        self.assertEqual(self.loan.status, LoanStatus.COMPLETED)
+
+        response = self.client.get(reverse("loans:my-lending"))
+        self.assertNotContains(response, "Confirm return")
+
+    def test_non_owner_cannot_confirm_return(self):
+        self.client.force_login(self.borrower)
+
+        response = self.client.post(
+            reverse("loans:confirm-return", kwargs={"pk": self.loan.pk})
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.loan.refresh_from_db()
+        self.assertEqual(self.loan.status, LoanStatus.RETURNED)
+
+    def test_invalid_confirm_return_transition_leaves_status_unchanged(self):
+        self.loan.status = LoanStatus.PICKED_UP
+        self.loan.save()
+        self.client.force_login(self.lessor)
+
+        response = self.client.post(
+            reverse("loans:confirm-return", kwargs={"pk": self.loan.pk})
+        )
+
+        self.assertRedirects(response, reverse("loans:my-lending"))
+        self.loan.refresh_from_db()
+        self.assertEqual(self.loan.status, LoanStatus.PICKED_UP)

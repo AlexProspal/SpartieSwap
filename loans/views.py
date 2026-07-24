@@ -7,7 +7,7 @@ from django.views.decorators.http import require_POST
 from listings.models import Listing
 
 from .forms import LoanRequestForm
-from .models import Loan, LoanStatus
+from .models import LESSOR_TRANSITIONS, Loan, LoanStatus
 
 
 @login_required
@@ -85,6 +85,23 @@ def my_borrowing(request):
     return render(request, "loans/my_borrowing.html", {"loans": loans})
 
 
+@login_required
+def my_lending_view(request):
+    loans = (
+        Loan.objects.filter(
+            listing__owner=request.user,
+            status__in=[
+                LoanStatus.APPROVED,
+                LoanStatus.PICKED_UP,
+                LoanStatus.RETURNED,
+            ],
+        )
+        .select_related("listing", "borrower")
+        .order_by("-requested_at")
+    )
+    return render(request, "loans/my_lending.html", {"loans": loans})
+
+
 def _advance_loan(request, pk, status):
     # Scoping the lookup to the logged-in borrower means someone else's loan is
     # a 404 rather than a permission error, which doesn't leak that it exists.
@@ -114,3 +131,16 @@ def mark_picked_up(request, pk):
 @require_POST
 def mark_returned(request, pk):
     return _advance_loan(request, pk, LoanStatus.RETURNED)
+
+
+@login_required
+@require_POST
+def confirm_return_view(request, pk):
+    loan = get_object_or_404(Loan, pk=pk, listing__owner=request.user)
+    try:
+        loan.transition_to(LoanStatus.COMPLETED, LESSOR_TRANSITIONS)
+    except ValidationError:
+        messages.error(request, "That action is not available for this lending exchange.")
+    else:
+        messages.success(request, f"Loan marked as {loan.get_status_display()}.")
+    return redirect("loans:my-lending")

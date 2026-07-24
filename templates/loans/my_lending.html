@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}My Lending | SpartieSwap{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+  <h1 class="h3 mb-1">My lending</h1>
+  <p class="text-secondary mb-0">Track your active lending exchanges and confirm when an item has been returned.</p>
+</div>
+
+<div class="row g-4">
+  {% for loan in loans %}
+    <div class="col-12">
+      <article class="bg-white border rounded p-4">
+        <div class="row g-4">
+          <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <h2 class="h5 mb-1">{{ loan.listing.title }}</h2>
+                <p class="text-secondary mb-3">Borrower: {{ loan.borrower.get_short_name }}</p>
+              </div>
+              <span class="badge text-bg-secondary">{{ loan.get_status_display }}</span>
+            </div>
+
+            <dl class="row mb-0">
+              <dt class="col-sm-3">Dates</dt>
+              <dd class="col-sm-9">{{ loan.start_date }}–{{ loan.return_date }}</dd>
+
+              <dt class="col-sm-3">Pickup area</dt>
+              <dd class="col-sm-9">{{ loan.listing.get_pickup_area_display }}</dd>
+            </dl>
+          </div>
+
+          <div class="col-lg-4">
+            <h3 class="h6">Progress</h3>
+            <ol class="borrowing-progress list-unstyled mb-3">
+              <li>Requested</li>
+              <li class="{% if loan.status == 'approved' %}fw-bold{% endif %}">Approved</li>
+              <li class="{% if loan.status == 'picked_up' %}fw-bold{% endif %}">Picked Up</li>
+              <li class="{% if loan.status == 'returned' %}fw-bold{% endif %}">Returned</li>
+              <li>Completed</li>
+            </ol>
+
+            {% if loan.status == 'returned' %}
+              <form method="post" action="{% url 'loans:confirm-return' loan.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-dark">Confirm return</button>
+              </form>
+            {% else %}
+              <p class="text-secondary mb-0">Nothing to do right now.</p>
+            {% endif %}
+          </div>
+        </div>
+      </article>
+    </div>
+  {% empty %}
+    <div class="col-12">
+      <div class="alert alert-light border">You do not have any active lending exchanges.</div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}
