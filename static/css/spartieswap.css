@@ -1,0 +1,22 @@
+/* Small tweaks on top of Bootstrap. Try to keep this file short and let
+   Bootstrap do the work. */
+
+body {
+  min-height: 100vh;
+}
+
+.navbar-brand {
+  letter-spacing: 0.05em;
+}
+
+/* as_div renders each field in a bare div with no spacing, so add it here. */
+form div + div {
+  margin-top: 0.75rem;
+}
+
+/* Django's password rules get dumped into this class. */
+.helptext {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--bs-secondary-color);
+}

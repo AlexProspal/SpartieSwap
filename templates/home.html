@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row g-4 align-items-start">
+  <div class="col-lg-7">
+    <div class="p-4 bg-white border rounded">
+      <h1 class="h3">Borrow useful items from other students.</h1>
+      <p class="text-secondary mb-3">
+        SpartieSwap organizes short-term lending between students so you can find what
+        you need for a few days without buying it or digging through group chats.
+      </p>
+      <p class="text-secondary mb-0">
+        Examples: calculators, chargers, tools, lab coats, textbooks.
+      </p>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    {% if user.is_authenticated %}
+      <div class="p-4 bg-white border rounded">
+        <h2 class="h5">Welcome back, {{ user.get_short_name }}.</h2>
+        <p class="text-secondary mb-0">Browsing and listing arrive with the next stories.</p>
+      </div>
+    {% else %}
+      <div class="p-4 bg-white border rounded">
+        <h2 class="h5 mb-3">Create your account</h2>
+        <form method="post" action="{% url 'accounts:signup' %}" novalidate>
+          {% csrf_token %}
+          {{ form.as_div }}
+          <button type="submit" class="btn btn-dark w-100 mt-3">Create account</button>
+        </form>
+        <p class="small text-secondary mt-3 mb-0">
+          Already have an account? <a href="{% url 'accounts:login' %}">Log in</a>.
+        </p>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Log in · SpartieSwap{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-md-6 col-lg-5">
+    <div class="p-4 bg-white border rounded">
+      <h1 class="h4 mb-3">Log in</h1>
+      {% if form.non_field_errors %}
+        <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+      {% endif %}
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {{ form.as_div }}
+        <button type="submit" class="btn btn-dark w-100 mt-3">Log in</button>
+      </form>
+      <p class="small text-secondary mt-3 mb-0">
+        Need an account? <a href="{% url 'accounts:signup' %}">Sign up</a>.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
