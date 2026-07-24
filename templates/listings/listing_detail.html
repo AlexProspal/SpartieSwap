@@ -43,7 +43,7 @@
         day{{ listing.maximum_loan_days|pluralize }}
       </dd>
 
-      <dt class="col-sm-4">Owner</dt>
+      <dt class="col-sm-4">Lessor</dt>
       <dd class="col-sm-8">{{ listing.owner.get_short_name }}</dd>
     </dl>
 
@@ -53,6 +53,13 @@
         href="{% url 'listings:owner-controls' listing.pk %}"
       >
         Owner controls
+      </a>
+    {% else %}
+      <a
+        class="btn btn-dark"
+        href="{% url 'loans:request-listing' listing.pk %}"
+      >
+        Request this item
       </a>
     {% endif %}
   </div>

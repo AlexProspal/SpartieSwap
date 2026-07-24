@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load crispy_forms_tags %}
+
+{% block title %}Request {{ listing.title }} | SpartieSwap{% endblock %}
+
+{% block content %}
+<a class="d-inline-block mb-3" href="{% url 'listings:detail' listing.pk %}">
+  ← Back to item details
+</a>
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="bg-white border rounded p-4">
+      <h1 class="h4">{{ listing.title }}</h1>
+      <p class="text-secondary">{{ listing.description }}</p>
+
+      <dl class="row small mb-0">
+        <dt class="col-5">Condition</dt>
+        <dd class="col-7">{{ listing.get_condition_display }}</dd>
+
+        <dt class="col-5">Pickup area</dt>
+        <dd class="col-7">{{ listing.get_pickup_area_display }}</dd>
+
+        <dt class="col-5">Available</dt>
+        <dd class="col-7">
+          {{ listing.available_from }}–{{ listing.available_until }}
+        </dd>
+
+        <dt class="col-5">Maximum loan</dt>
+        <dd class="col-7">
+          {{ listing.maximum_loan_days }}
+          day{{ listing.maximum_loan_days|pluralize }}
+        </dd>
+
+        <dt class="col-5">Lessor</dt>
+        <dd class="col-7">{{ listing.owner.get_short_name }}</dd>
+      </dl>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="bg-white border rounded p-4">
+      <h2 class="h4">Request this item</h2>
+      <p class="text-secondary">
+        Choose dates within the listed availability period.
+      </p>
+
+      <form method="post" novalidate>
+        {% csrf_token %}
+        {{ form|crispy }}
+
+        <div class="d-flex justify-content-end gap-2 mt-4">
+          <a
+            class="btn btn-outline-secondary"
+            href="{% url 'listings:detail' listing.pk %}"
+          >
+            Cancel
+          </a>
+          <button class="btn btn-dark" type="submit">Submit request</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
