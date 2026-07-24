@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Browse Listings | SpartieSwap{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h1 class="h3 mb-1">Browse available items</h1>
+    <p class="text-secondary mb-0">
+      Find useful items available from other students.
+    </p>
+  </div>
+</div>
+
+<div class="row g-4">
+  {% for listing in listings %}
+    <div class="col-md-6 col-lg-4">
+      <div class="card h-100 shadow-sm">
+        <div class="card-body">
+          <h2 class="h5 card-title">{{ listing.title }}</h2>
+
+          <dl class="row small mb-3">
+            <dt class="col-5">Category</dt>
+            <dd class="col-7">{{ listing.get_category_display }}</dd>
+
+            <dt class="col-5">Condition</dt>
+            <dd class="col-7">{{ listing.get_condition_display }}</dd>
+
+            <dt class="col-5">Pickup area</dt>
+            <dd class="col-7">{{ listing.get_pickup_area_display }}</dd>
+
+            <dt class="col-5">Available</dt>
+            <dd class="col-7">
+              {{ listing.available_from }}–{{ listing.available_until }}
+            </dd>
+          </dl>
+
+          <a
+            class="btn btn-outline-dark"
+            href="{% url 'listings:detail' listing.pk %}"
+          >
+            View details
+          </a>
+        </div>
+      </div>
+    </div>
+  {% empty %}
+    <div class="col-12">
+      <div class="alert alert-light border">
+        No active listings are currently available.
+      </div>
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

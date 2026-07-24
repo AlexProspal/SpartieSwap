@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}{{ listing.title }} | SpartieSwap{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+    <a href="{% url 'listings:list' %}" class="small">
+      ← Back to listings
+    </a>
+
+    <div class="bg-white border rounded p-4 mt-3">
+      <h1 class="h3">{{ listing.title }}</h1>
+      <p class="text-secondary">{{ listing.description }}</p>
+
+      <dl class="row mb-0">
+        <dt class="col-sm-4">Category</dt>
+        <dd class="col-sm-8">{{ listing.get_category_display }}</dd>
+
+        <dt class="col-sm-4">Condition</dt>
+        <dd class="col-sm-8">{{ listing.get_condition_display }}</dd>
+
+        <dt class="col-sm-4">Pickup area</dt>
+        <dd class="col-sm-8">{{ listing.get_pickup_area_display }}</dd>
+
+        <dt class="col-sm-4">Available dates</dt>
+        <dd class="col-sm-8">
+          {{ listing.available_from }}–{{ listing.available_until }}
+        </dd>
+
+        <dt class="col-sm-4">Owner</dt>
+        <dd class="col-sm-8">{{ listing.owner.get_short_name }}</dd>
+      </dl>
+    </div>
+  </div>
+</div>
+{% endblock %}
