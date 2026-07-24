@@ -21,6 +21,21 @@ urlpatterns = [
         name="pending-requests",
     ),
     path(
+        "requests/<int:pk>/approve/",
+        views.approve_request,
+        name="approve",
+    ),
+    path(
+        "requests/<int:pk>/decline/",
+        views.decline_request,
+        name="decline",
+    ),
+    path(
+        "requests/<int:pk>/cancel/",
+        views.cancel_approved_loan,
+        name="cancel-approved",
+    ),
+    path(
         "borrowing/",
         views.my_borrowing,
         name="my-borrowing",
