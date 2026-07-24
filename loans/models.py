@@ -2,6 +2,7 @@ from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+from django.utils.formats import date_format
 
 from listings.models import Listing
 
@@ -16,20 +17,27 @@ class LoanStatus(models.TextChoices):
     CANCELLED = "cancelled", "Cancelled"
 
 
-# What the borrower is allowed to do, keyed by where the loan is now. The lessor
-# side (approving, declining, confirming the return) lands in 1.4 and 1.6 - add
-# a matching map there rather than widening this one, since these are the
-# actions we let the borrower trigger.
+# Who is allowed to move a loan where, keyed by the status it is in now. Split by
+# role so the borrower can't approve their own request and the lessor can't mark
+# an item picked up on the borrower's behalf.
 BORROWER_TRANSITIONS = {
     LoanStatus.REQUESTED: {LoanStatus.CANCELLED},
     LoanStatus.APPROVED: {LoanStatus.PICKED_UP},
     LoanStatus.PICKED_UP: {LoanStatus.RETURNED},
 }
 
-
 LESSOR_TRANSITIONS = {
+    # Cancelling an approved loan is for when the lessor can no longer hand the
+    # item over. Once it is picked up it is out in the world, so returning it is
+    # the borrower's move - the lessor then confirms it came back.
+    LoanStatus.REQUESTED: {LoanStatus.APPROVED, LoanStatus.DECLINED},
+    LoanStatus.APPROVED: {LoanStatus.CANCELLED},
     LoanStatus.RETURNED: {LoanStatus.COMPLETED},
 }
+
+# An approved or picked-up loan is holding the item; everything else has either
+# not been agreed to or is already finished with it.
+OCCUPYING_STATUSES = {LoanStatus.APPROVED, LoanStatus.PICKED_UP}
 
 
 class Loan(models.Model):
@@ -64,16 +72,51 @@ class Loan(models.Model):
     def __str__(self):
         return f"{self.listing.title} requested by {self.borrower}"
 
-    def transition_to(self, status, transitions=BORROWER_TRANSITIONS):
-        """Move the loan forward one step, refusing anything out of order.
+    def _move_to(self, status, allowed):
+        """Move the loan one step, refusing anything out of order.
 
-        Keeps the buttons on the dashboard honest - someone can't skip from
-        requested straight to returned by posting to the URL directly.
+        Keeps the buttons honest - nobody can skip from requested straight to
+        returned by posting at the URL directly.
         """
-        if status not in transitions.get(self.status, set()):
+        if status not in allowed.get(self.status, set()):
             raise ValidationError("This loan cannot be moved to that status.")
         self.status = status
         self.save(update_fields=["status", "updated_at"])
+
+    def borrower_transition_to(self, status):
+        self._move_to(status, BORROWER_TRANSITIONS)
+
+    def lessor_transition_to(self, status):
+        # Approving is the one transition that depends on more than the current
+        # status, since another loan may already have the item over these dates.
+        if status == LoanStatus.APPROVED:
+            conflict = self.conflicting_loan()
+            if conflict is not None:
+                raise ValidationError(
+                    "These dates overlap an approved loan running "
+                    f"{date_format(conflict.start_date, 'DATE_FORMAT')} to "
+                    f"{date_format(conflict.return_date, 'DATE_FORMAT')}."
+                )
+        self._move_to(status, LESSOR_TRANSITIONS)
+
+    def conflicting_loan(self):
+        """The already-approved loan whose dates clash with this one, if any.
+
+        Dates are inclusive at both ends: someone keeping an item until the 24th
+        still has it on the 24th, so the next loan can only start on the 25th.
+        Two loans overlap when each one starts on or before the other ends.
+        """
+        return (
+            Loan.objects.filter(
+                listing_id=self.listing_id,
+                status__in=OCCUPYING_STATUSES,
+                start_date__lte=self.return_date,
+                return_date__gte=self.start_date,
+            )
+            .exclude(pk=self.pk)
+            .order_by("start_date")
+            .first()
+        )
 
     @property
     def requested_days(self):

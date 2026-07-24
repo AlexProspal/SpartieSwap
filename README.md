@@ -87,9 +87,23 @@ Nothing goes straight to `main`. Branch off it, name the branch after what you'r
 (`feature/item-listings`, `bugfix/login-validation`, `docs/report-update`), and open a
 pull request when you're ready.
 
+**Branch off `main` and target `main`.** Don't point a pull request at another feature
+branch. We lost work twice doing that: the branch you're targeting gets merged into
+`main` first, your PR then merges into a branch nobody looks at again, and the code
+quietly never arrives. If your work genuinely needs something still in review, say so in
+the PR and wait for it to land rather than branching off it.
+
+If two of you touch the same file, whoever merges second rebases onto `main` and sorts
+it out. Watch for the case where git reports no conflict but the result is still wrong -
+two people adding the same top-level name to a module merges cleanly and then silently
+keeps only the last one.
+
 In the PR, say what you changed, link the Issue it belongs to, and mention how you
 tested it. Someone else on the team has to review it, and CI has to be green before it
 merges. Once it's in, close the Issue and move the card to Done.
+
+CI runs on every pull request. Lint, the migration check and the tests each report
+separately, so a style error doesn't hide a passing test run.
 
 A story counts as finished when its acceptance criteria actually work, there are tests
 covering it, CI passes, someone reviewed it, and the docs still match what the code

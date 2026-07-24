@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+  # Every pull request, whatever it targets. Limiting this to PRs into main meant
+  # a PR between two feature branches got no checks at all and showed up with an
+  # empty checks list, which reads like nothing was configured.
   pull_request:
-    branches: [main]
 
 jobs:
   test:
@@ -42,11 +44,16 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
 
+      # These three run independently. Without always() a lint slip stops the job
+      # before the tests, and the red X looks like the tests failed when they were
+      # never run - that confused us on #28. The job still fails if any step does.
       - name: Lint
         run: ruff check .
 
       - name: Check for missing migrations
+        if: always()
         run: python manage.py makemigrations --check --dry-run
 
       - name: Run tests
+        if: always()
         run: python manage.py test --verbosity 2
