@@ -591,7 +591,7 @@ class MyLendingViewTests(TestCase):
             "Completed Calculator",
         )
 
-        completed_loan = Loan.objects.create(
+        Loan.objects.create(
             listing=completed_listing,
             borrower=self.borrower,
             start_date=date(2026, 7, 26),
