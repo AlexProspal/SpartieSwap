@@ -62,19 +62,70 @@ def request_confirmation(request, pk):
 
 @login_required
 def pending_requests(request):
-    requests = (
-        Loan.objects.filter(
-            listing__owner=request.user,
-            status=LoanStatus.REQUESTED,
-        )
-        .select_related("listing", "borrower")
-        .order_by("-requested_at")
+    mine = Loan.objects.filter(listing__owner=request.user).select_related(
+        "listing", "borrower"
     )
+
+    # Completed loans stand in as reliability information until ratings arrive
+    # with 2.3 and 2.4.
+    pending = [
+        (loan, _completed_loan_count(loan.borrower_id))
+        for loan in mine.filter(status=LoanStatus.REQUESTED).order_by("-requested_at")
+    ]
+    approved = mine.filter(status=LoanStatus.APPROVED).order_by("start_date")
+
     return render(
         request,
         "loans/pending_requests.html",
-        {"loan_requests": requests},
+        {"pending_requests": pending, "approved_loans": approved},
     )
+
+
+def _completed_loan_count(borrower_id):
+    return Loan.objects.filter(
+        borrower_id=borrower_id, status=LoanStatus.COMPLETED
+    ).count()
+
+
+def _decide_request(request, pk, status):
+    # Scoped to loans on the current user's own listings, so another lessor's
+    # request is a 404 rather than a permission error.
+    loan = get_object_or_404(
+        Loan.objects.select_related("listing"),
+        pk=pk,
+        listing__owner=request.user,
+    )
+    try:
+        loan.lessor_transition_to(status)
+    except ValidationError as error:
+        # Approval failures carry the clashing dates, so show what came back
+        # rather than a generic message.
+        messages.error(request, error.messages[0])
+    else:
+        messages.success(
+            request,
+            f'Request from {loan.borrower.get_short_name()} was '
+            f"{loan.get_status_display().lower()}.",
+        )
+    return redirect("loans:pending-requests")
+
+
+@login_required
+@require_POST
+def approve_request(request, pk):
+    return _decide_request(request, pk, LoanStatus.APPROVED)
+
+
+@login_required
+@require_POST
+def decline_request(request, pk):
+    return _decide_request(request, pk, LoanStatus.DECLINED)
+
+
+@login_required
+@require_POST
+def cancel_approved_loan(request, pk):
+    return _decide_request(request, pk, LoanStatus.CANCELLED)
 
 
 @login_required
@@ -90,7 +141,7 @@ def _advance_loan(request, pk, status):
     # a 404 rather than a permission error, which doesn't leak that it exists.
     loan = get_object_or_404(Loan, pk=pk, borrower=request.user)
     try:
-        loan.transition_to(status)
+        loan.borrower_transition_to(status)
     except ValidationError:
         messages.error(request, "That action is not available for this borrowing request.")
     else:

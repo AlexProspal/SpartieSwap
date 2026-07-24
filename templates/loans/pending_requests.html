@@ -1,51 +1,60 @@
 {% extends "base.html" %}
 
-{% block title %}Pending Requests | SpartieSwap{% endblock %}
+{% block title %}Requests for My Items | SpartieSwap{% endblock %}
 
 {% block content %}
 <div class="mb-4">
-  <h1 class="h3 mb-1">Pending requests</h1>
+  <h1 class="h3 mb-1">Requests for my items</h1>
   <p class="text-secondary mb-0">
-    Requests submitted for items you have listed.
+    Accept or decline requests, and manage exchanges you have already agreed to.
   </p>
 </div>
 
-<div class="row g-3">
-  {% for loan in loan_requests %}
+<h2 class="h5 mb-3">Pending</h2>
+<div class="row g-3 mb-5">
+  {% for loan, completed_loans in pending_requests %}
     <div class="col-lg-6">
       <article class="card h-100">
         <div class="card-body">
           <div class="d-flex justify-content-between gap-3 mb-3">
             <div>
-              <h2 class="h5 mb-1">{{ loan.listing.title }}</h2>
+              <h3 class="h5 mb-1">{{ loan.listing.title }}</h3>
               <p class="text-secondary mb-0">
                 Requested by {{ loan.borrower.get_short_name }}
               </p>
+              {# Ratings arrive with 2.3 and 2.4, so completed loans are the reliability info we have today. #}
+              <p class="small text-secondary mb-0">
+                {{ completed_loans }} completed loan{{ completed_loans|pluralize }}
+              </p>
             </div>
-            <span class="badge text-bg-warning">
+            <span class="badge text-bg-warning align-self-start">
               {{ loan.get_status_display }}
             </span>
           </div>
 
           <dl class="row small mb-3">
-            <dt class="col-5">Start date</dt>
-            <dd class="col-7">{{ loan.start_date }}</dd>
+            <dt class="col-5">Requested dates</dt>
+            <dd class="col-7">{{ loan.start_date }} to {{ loan.return_date }}</dd>
 
-            <dt class="col-5">Return date</dt>
-            <dd class="col-7">{{ loan.return_date }}</dd>
-
-            <dt class="col-5">Requested</dt>
+            <dt class="col-5">Submitted</dt>
             <dd class="col-7">{{ loan.requested_at }}</dd>
           </dl>
 
-          <p class="mb-0">
+          <p>
             <strong>Message:</strong>
-            {% if loan.message %}
-              {{ loan.message }}
-            {% else %}
-              No message included.
-            {% endif %}
+            {% if loan.message %}{{ loan.message }}{% else %}No message included.{% endif %}
           </p>
+
+          <div class="d-flex gap-2">
+            <form method="post" action="{% url 'loans:approve' loan.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-dark">Accept</button>
+            </form>
+            <form method="post" action="{% url 'loans:decline' loan.pk %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline-secondary">Decline</button>
+            </form>
+          </div>
         </div>
       </article>
     </div>
@@ -53,6 +62,49 @@
     <div class="col-12">
       <div class="bg-white border rounded p-4 text-center">
         <p class="mb-0">You do not have any pending requests.</p>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<h2 class="h5 mb-3">Approved</h2>
+<div class="row g-3">
+  {% for loan in approved_loans %}
+    <div class="col-lg-6">
+      <article class="card h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between gap-3 mb-3">
+            <div>
+              <h3 class="h5 mb-1">{{ loan.listing.title }}</h3>
+              <p class="text-secondary mb-0">
+                Lending to {{ loan.borrower.get_short_name }}
+              </p>
+            </div>
+            <span class="badge text-bg-secondary align-self-start">
+              {{ loan.get_status_display }}
+            </span>
+          </div>
+
+          <dl class="row small mb-3">
+            <dt class="col-5">Dates</dt>
+            <dd class="col-7">{{ loan.start_date }} to {{ loan.return_date }}</dd>
+          </dl>
+
+          <p class="small text-secondary">
+            Waiting for {{ loan.borrower.get_short_name }} to collect the item.
+          </p>
+
+          <form method="post" action="{% url 'loans:cancel-approved' loan.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-outline-danger">Cancel exchange</button>
+          </form>
+        </div>
+      </article>
+    </div>
+  {% empty %}
+    <div class="col-12">
+      <div class="bg-white border rounded p-4 text-center">
+        <p class="mb-0">Nothing approved and waiting for pickup.</p>
       </div>
     </div>
   {% endfor %}
