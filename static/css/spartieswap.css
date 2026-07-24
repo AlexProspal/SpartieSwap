@@ -20,3 +20,9 @@ form div + div {
   font-size: 0.8125rem;
   color: var(--bs-secondary-color);
 }
+
+.borrowing-progress li:not(:last-child)::after {
+  content: "↓";
+  display: block;
+  color: var(--bs-secondary-color);
+}

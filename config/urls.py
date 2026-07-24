@@ -10,6 +10,7 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("accounts/", include("accounts.urls")),
     path("listings/", include("listings.urls")),
+    path("borrowing/", include("loans.urls")),
 ]
 
 # Django won't serve uploaded item photos on its own, so do it in development.
