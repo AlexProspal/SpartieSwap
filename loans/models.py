@@ -16,6 +16,17 @@ class LoanStatus(models.TextChoices):
     CANCELLED = "cancelled", "Cancelled"
 
 
+# What the borrower is allowed to do, keyed by where the loan is now. The lessor
+# side (approving, declining, confirming the return) lands in 1.4 and 1.6 - add
+# a matching map there rather than widening this one, since these are the
+# actions we let the borrower trigger.
+BORROWER_TRANSITIONS = {
+    LoanStatus.REQUESTED: {LoanStatus.CANCELLED},
+    LoanStatus.APPROVED: {LoanStatus.PICKED_UP},
+    LoanStatus.PICKED_UP: {LoanStatus.RETURNED},
+}
+
+
 class Loan(models.Model):
     listing = models.ForeignKey(
         Listing,
@@ -47,6 +58,17 @@ class Loan(models.Model):
 
     def __str__(self):
         return f"{self.listing.title} requested by {self.borrower}"
+
+    def transition_to(self, status):
+        """Move the loan forward one step, refusing anything out of order.
+
+        Keeps the buttons on the dashboard honest - someone can't skip from
+        requested straight to returned by posting to the URL directly.
+        """
+        if status not in BORROWER_TRANSITIONS.get(self.status, set()):
+            raise ValidationError("This loan cannot be moved to that status.")
+        self.status = status
+        self.save(update_fields=["status", "updated_at"])
 
     @property
     def requested_days(self):

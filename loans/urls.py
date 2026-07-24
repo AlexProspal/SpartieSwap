@@ -20,4 +20,24 @@ urlpatterns = [
         views.pending_requests,
         name="pending-requests",
     ),
+    path(
+        "borrowing/",
+        views.my_borrowing,
+        name="my-borrowing",
+    ),
+    path(
+        "borrowing/<int:pk>/cancel/",
+        views.cancel_request,
+        name="cancel",
+    ),
+    path(
+        "borrowing/<int:pk>/pickup/",
+        views.mark_picked_up,
+        name="pickup",
+    ),
+    path(
+        "borrowing/<int:pk>/return/",
+        views.mark_returned,
+        name="return",
+    ),
 ]

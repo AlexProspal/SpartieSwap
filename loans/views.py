@@ -1,6 +1,8 @@
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.http import require_POST
 
 from listings.models import Listing
 
@@ -73,3 +75,42 @@ def pending_requests(request):
         "loans/pending_requests.html",
         {"loan_requests": requests},
     )
+
+
+@login_required
+def my_borrowing(request):
+    loans = Loan.objects.filter(borrower=request.user).select_related(
+        "listing", "listing__owner"
+    )
+    return render(request, "loans/my_borrowing.html", {"loans": loans})
+
+
+def _advance_loan(request, pk, status):
+    # Scoping the lookup to the logged-in borrower means someone else's loan is
+    # a 404 rather than a permission error, which doesn't leak that it exists.
+    loan = get_object_or_404(Loan, pk=pk, borrower=request.user)
+    try:
+        loan.transition_to(status)
+    except ValidationError:
+        messages.error(request, "That action is not available for this borrowing request.")
+    else:
+        messages.success(request, f"Request marked as {loan.get_status_display()}.")
+    return redirect("loans:my-borrowing")
+
+
+@login_required
+@require_POST
+def cancel_request(request, pk):
+    return _advance_loan(request, pk, LoanStatus.CANCELLED)
+
+
+@login_required
+@require_POST
+def mark_picked_up(request, pk):
+    return _advance_loan(request, pk, LoanStatus.PICKED_UP)
+
+
+@login_required
+@require_POST
+def mark_returned(request, pk):
+    return _advance_loan(request, pk, LoanStatus.RETURNED)
