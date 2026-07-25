@@ -73,6 +73,12 @@ coverage report
 exactly which lines are missed. CI runs this on every pull request too and attaches the
 report to the run — it's under Artifacts on the Actions page, as `coverage-report`.
 
+## Docs
+
+- [User manual](docs/user-manual.md) — how to actually use the app, with screenshots
+- [Architecture and design](docs/architecture.md) — how it's put together and why
+- [Project status](docs/project-status.md) — what shipped, what's left, risks, known issues
+
 ## How the code is organized
 
 ```
