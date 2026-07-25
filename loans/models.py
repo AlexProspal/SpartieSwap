@@ -27,6 +27,11 @@ BORROWER_TRANSITIONS = {
 }
 
 
+LESSOR_TRANSITIONS = {
+    LoanStatus.RETURNED: {LoanStatus.COMPLETED},
+}
+
+
 class Loan(models.Model):
     listing = models.ForeignKey(
         Listing,
@@ -59,13 +64,13 @@ class Loan(models.Model):
     def __str__(self):
         return f"{self.listing.title} requested by {self.borrower}"
 
-    def transition_to(self, status):
+    def transition_to(self, status, transitions=BORROWER_TRANSITIONS):
         """Move the loan forward one step, refusing anything out of order.
 
         Keeps the buttons on the dashboard honest - someone can't skip from
         requested straight to returned by posting to the URL directly.
         """
-        if status not in BORROWER_TRANSITIONS.get(self.status, set()):
+        if status not in transitions.get(self.status, set()):
             raise ValidationError("This loan cannot be moved to that status.")
         self.status = status
         self.save(update_fields=["status", "updated_at"])

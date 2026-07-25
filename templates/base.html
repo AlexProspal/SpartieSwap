@@ -26,6 +26,7 @@
             </li>
             <li class="nav-item"><span class="nav-link disabled">My Listings</span></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'loans:my-borrowing' %}">Loans</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'loans:my-lending' %}">Lending</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'loans:pending-requests' %}">Requests</a></li>
             <li class="nav-item"><span class="nav-link disabled">{{ user.get_short_name }}</span></li>
             <li class="nav-item ms-lg-2">

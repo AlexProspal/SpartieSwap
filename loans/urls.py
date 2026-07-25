@@ -26,6 +26,11 @@ urlpatterns = [
         name="my-borrowing",
     ),
     path(
+        "lending/",
+        views.my_lending_view,
+        name="my-lending",
+    ),
+    path(
         "borrowing/<int:pk>/cancel/",
         views.cancel_request,
         name="cancel",
@@ -39,5 +44,10 @@ urlpatterns = [
         "borrowing/<int:pk>/return/",
         views.mark_returned,
         name="return",
+    ),
+    path(
+        "lending/<int:pk>/confirm-return/",
+        views.confirm_return_view,
+        name="confirm-return",
     ),
 ]
