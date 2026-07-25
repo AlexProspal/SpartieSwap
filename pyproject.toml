@@ -5,3 +5,18 @@ exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "DJ"]
+
+[tool.coverage.run]
+source = ["accounts", "config", "listings", "loans"]
+omit = [
+    # Migrations are generated, and these two are boilerplate we never touch.
+    "*/migrations/*",
+    "config/asgi.py",
+    "config/wsgi.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+# The test files themselves would inflate the number, so leave them out.
+omit = ["*/tests.py"]

@@ -62,6 +62,17 @@ merge if anything fails. There's also a style check:
 ruff check .
 ```
 
+To see how much of the code the tests actually touch:
+
+```bash
+coverage run manage.py test
+coverage report
+```
+
+`coverage html` writes a clickable version to `htmlcov/index.html` if you want to see
+exactly which lines are missed. CI runs this on every pull request too and attaches the
+report to the run — it's under Artifacts on the Actions page, as `coverage-report`.
+
 ## How the code is organized
 
 ```
