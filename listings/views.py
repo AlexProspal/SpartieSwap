@@ -2,17 +2,24 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .forms import ListingForm
+from .forms import ListingFilterForm, ListingForm
 from .models import Listing
 
 
 @login_required
 def listing_list(request):
-    listings = Listing.objects.filter(is_active=True).select_related("owner")
+    # `or None` keeps the form unbound on a plain visit, so arriving at the page
+    # normally doesn't show validation errors for fields nobody has filled in.
+    form = ListingFilterForm(request.GET or None)
+    listings = form.apply(Listing.objects.filter(is_active=True).select_related("owner"))
     return render(
         request,
         "listings/listing_list.html",
-        {"listings": listings},
+        {
+            "listings": listings,
+            "form": form,
+            "is_filtered": form.is_filtered,
+        },
     )
 
 
