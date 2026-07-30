@@ -5,11 +5,13 @@
 {% block content %}
 <div class="mb-4">
   <h1 class="h3 mb-1">My lending</h1>
-  <p class="text-secondary mb-0">Track your active lending exchanges and confirm when an item has been returned.</p>
+  <p class="text-secondary mb-0">Track your active and previous lending exchanges.</p>
 </div>
 
-<div class="row g-4">
-  {% for loan in loans %}
+<section class="mb-5">
+  <h2 class="h4 mb-3">Active lending</h2>
+  <div class="row g-4">
+  {% for loan in active_loans %}
     <div class="col-12">
       <article class="bg-white border rounded p-4">
         <div class="row g-4">
@@ -19,7 +21,12 @@
                 <h2 class="h5 mb-1">{{ loan.listing.title }}</h2>
                 <p class="text-secondary mb-3">Borrower: {{ loan.borrower.get_short_name }}</p>
               </div>
-              <span class="badge text-bg-secondary">{{ loan.get_status_display }}</span>
+              <div class="d-flex flex-column align-items-end gap-2">
+                <span class="badge text-bg-secondary">{{ loan.get_status_display }}</span>
+                {% if loan.is_overdue %}
+                  <span class="badge text-bg-danger">Overdue</span>
+                {% endif %}
+              </div>
             </div>
 
             <dl class="row mb-0">
@@ -58,5 +65,61 @@
       <div class="alert alert-light border">You do not have any active lending exchanges.</div>
     </div>
   {% endfor %}
-</div>
+  </div>
+</section>
+
+<section>
+  <h2 class="h4 mb-3">Previous lending</h2>
+  <div class="row g-4">
+  {% for loan in previous_loans %}
+    <div class="col-12">
+      <article class="bg-white border rounded p-4">
+        <div class="row g-4">
+          <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <h2 class="h5 mb-1">{{ loan.listing.title }}</h2>
+                <p class="text-secondary mb-1">Borrower: {{ loan.borrower.get_short_name }}</p>
+                <p class="small text-secondary mb-3">
+                  {% if loan.borrower_average_rating %}
+                    Borrower rating: {{ loan.borrower_average_rating|floatformat:1 }}/5
+                  {% else %}
+                    Borrower rating: No ratings yet
+                  {% endif %}
+                  · {{ loan.borrower_completed_loan_count }} completed loan{{ loan.borrower_completed_loan_count|pluralize }}
+                </p>
+              </div>
+              <span class="badge text-bg-secondary">{{ loan.get_status_display }}</span>
+            </div>
+
+            <dl class="row mb-0">
+              <dt class="col-sm-3">Dates</dt>
+              <dd class="col-sm-9">{{ loan.start_date }}–{{ loan.return_date }}</dd>
+
+              <dt class="col-sm-3">Pickup area</dt>
+              <dd class="col-sm-9 mb-0">{{ loan.listing.get_pickup_area_display }}</dd>
+            </dl>
+          </div>
+
+          <div class="col-lg-4">
+            {% if loan.status == 'completed' %}
+              {% if loan.lessor_has_reviewed %}
+                <p class="text-success mb-0">Review submitted</p>
+              {% else %}
+                <a class="btn btn-dark" href="{% url 'loans:review-borrower' loan.pk %}">Review borrower</a>
+              {% endif %}
+            {% else %}
+              <p class="text-secondary mb-0">This request was {{ loan.get_status_display|lower }} and is closed.</p>
+            {% endif %}
+          </div>
+        </div>
+      </article>
+    </div>
+  {% empty %}
+    <div class="col-12">
+      <div class="alert alert-light border mb-0">You have no previous lending activity.</div>
+    </div>
+  {% endfor %}
+  </div>
+</section>
 {% endblock %}
