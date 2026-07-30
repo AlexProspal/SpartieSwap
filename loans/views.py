@@ -233,18 +233,101 @@ def review_lessor(request, pk):
 @login_required
 def my_lending_view(request):
     loans = (
-        Loan.objects.filter(
-            listing__owner=request.user,
-            status__in=[
-                LoanStatus.APPROVED,
-                LoanStatus.PICKED_UP,
-                LoanStatus.RETURNED,
-            ],
-        )
+        Loan.objects.filter(listing__owner=request.user)
         .select_related("listing", "borrower")
         .order_by("-requested_at")
     )
-    return render(request, "loans/my_lending.html", {"loans": loans})
+
+    active_statuses = [
+        LoanStatus.REQUESTED,
+        LoanStatus.APPROVED,
+        LoanStatus.PICKED_UP,
+        LoanStatus.RETURNED,
+    ]
+    previous_statuses = [
+        LoanStatus.COMPLETED,
+        LoanStatus.DECLINED,
+        LoanStatus.CANCELLED,
+    ]
+    active_loans = list(loans.filter(status__in=active_statuses))
+    previous_loans = list(loans.filter(status__in=previous_statuses))
+    all_loans = active_loans + previous_loans
+
+    borrower_ids = {loan.borrower_id for loan in all_loans}
+    reviewed_loan_ids = set(
+        Review.objects.filter(
+            reviewer=request.user,
+            loan_id__in=[loan.pk for loan in previous_loans],
+        ).values_list("loan_id", flat=True)
+    )
+    borrower_ratings = {
+        row["reviewee_id"]: row["average_rating"]
+        for row in Review.objects.filter(
+            reviewee_id__in=borrower_ids,
+            reviewer_id=F("loan__listing__owner_id"),
+        )
+        .values("reviewee_id")
+        .annotate(average_rating=Avg("rating"))
+    }
+    completed_loan_counts = {
+        row["borrower_id"]: row["completed_count"]
+        for row in Loan.objects.filter(
+            borrower_id__in=borrower_ids,
+            status=LoanStatus.COMPLETED,
+        )
+        .values("borrower_id")
+        .annotate(completed_count=Count("id"))
+    }
+
+    for loan in all_loans:
+        loan.lessor_has_reviewed = loan.pk in reviewed_loan_ids
+        loan.borrower_average_rating = borrower_ratings.get(loan.borrower_id)
+        loan.borrower_completed_loan_count = completed_loan_counts.get(
+            loan.borrower_id, 0
+        )
+
+    return render(
+        request,
+        "loans/my_lending.html",
+        {
+            "active_loans": active_loans,
+            "previous_loans": previous_loans,
+        },
+    )
+
+
+@login_required
+def review_borrower(request, pk):
+    loan = get_object_or_404(
+        Loan.objects.select_related("listing", "borrower"),
+        pk=pk,
+        listing__owner=request.user,
+        status=LoanStatus.COMPLETED,
+    )
+
+    if Review.objects.filter(loan=loan, reviewer=request.user).exists():
+        messages.info(request, "You have already reviewed the borrower for this loan.")
+        return redirect("loans:my-lending")
+
+    form = ReviewForm(
+        request.POST or None,
+        loan=loan,
+        reviewer=request.user,
+        reviewee=loan.borrower,
+    )
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Your review of the borrower was submitted.")
+        return redirect("loans:my-lending")
+
+    return render(
+        request,
+        "loans/review_borrower_form.html",
+        {
+            "form": form,
+            "loan": loan,
+        },
+    )
 
 
 def _advance_loan(request, pk, status):

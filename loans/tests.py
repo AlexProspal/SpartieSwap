@@ -888,7 +888,7 @@ class MyLendingViewTests(TestCase):
         self.assertContains(response, self.borrower.display_name)
         self.assertContains(response, "Case Quad")
         self.assertNotContains(response, other_listing.title)
-        self.assertNotContains(response, completed_listing.title)
+        self.assertContains(response, completed_listing.title)
 
     def test_confirm_return_button_only_appears_for_returned_loans(self):
         self.client.force_login(self.lessor)
@@ -1160,3 +1160,226 @@ class IncomingRequestTests(TestCase):
         self.assertEqual(response.status_code, 405)
         loan.refresh_from_db()
         self.assertEqual(loan.status, LoanStatus.REQUESTED)
+
+
+class MyLendingHistoryTests(TestCase):
+    def setUp(self):
+        self.lessor = User.objects.create_user(
+            email="history-lessor@case.edu",
+            password="TestPassword123!",
+            display_name="History Lessor",
+        )
+        self.borrower = User.objects.create_user(
+            email="history-borrower@case.edu",
+            password="TestPassword123!",
+            display_name="History Borrower",
+        )
+        self.other_lessor = User.objects.create_user(
+            email="other-history-lessor@case.edu",
+            password="TestPassword123!",
+            display_name="Other History Lessor",
+        )
+        self.other_borrower = User.objects.create_user(
+            email="other-history-borrower@case.edu",
+            password="TestPassword123!",
+            display_name="Other History Borrower",
+        )
+        today = timezone.localdate()
+        self.listing = Listing.objects.create(
+            owner=self.lessor,
+            title="History Calculator",
+            description="A calculator for lending-history tests.",
+            category=ItemCategory.ELECTRONICS,
+            condition=ItemCondition.GOOD,
+            pickup_area=CampusArea.CASE_QUAD,
+            available_from=today - timedelta(days=10),
+            available_until=today + timedelta(days=10),
+        )
+
+    def make_loan(self, status, *, title=None, borrower=None, return_date=None):
+        listing = self.listing
+        if title:
+            listing = Listing.objects.create(
+                owner=self.lessor,
+                title=title,
+                description="Another lending-history listing.",
+                category=ItemCategory.ELECTRONICS,
+                condition=ItemCondition.GOOD,
+                pickup_area=CampusArea.CASE_QUAD,
+                available_from=timezone.localdate() - timedelta(days=10),
+                available_until=timezone.localdate() + timedelta(days=10),
+            )
+        return Loan.objects.create(
+            listing=listing,
+            borrower=borrower or self.borrower,
+            start_date=timezone.localdate() - timedelta(days=2),
+            return_date=return_date or timezone.localdate() + timedelta(days=2),
+            status=status,
+        )
+
+    def test_history_is_owner_scoped_and_separates_active_from_previous(self):
+        active = self.make_loan(LoanStatus.APPROVED, title="Active lending")
+        completed = self.make_loan(LoanStatus.COMPLETED, title="Completed lending")
+        declined = self.make_loan(LoanStatus.DECLINED, title="Declined lending")
+        cancelled = self.make_loan(LoanStatus.CANCELLED, title="Cancelled lending")
+        other_listing = Listing.objects.create(
+            owner=self.other_lessor,
+            title="Other lessor lending",
+            description="Must not appear in this history.",
+            category=ItemCategory.ELECTRONICS,
+            condition=ItemCondition.GOOD,
+            pickup_area=CampusArea.CASE_QUAD,
+            available_from=timezone.localdate() - timedelta(days=10),
+            available_until=timezone.localdate() + timedelta(days=10),
+        )
+        Loan.objects.create(
+            listing=other_listing,
+            borrower=self.other_borrower,
+            start_date=timezone.localdate() - timedelta(days=2),
+            return_date=timezone.localdate() + timedelta(days=2),
+            status=LoanStatus.COMPLETED,
+        )
+        self.client.force_login(self.lessor)
+
+        response = self.client.get(reverse("loans:my-lending"))
+
+        self.assertEqual(response.context["active_loans"], [active])
+        self.assertCountEqual(
+            response.context["previous_loans"], [completed, declined, cancelled]
+        )
+        self.assertContains(response, "Completed")
+        self.assertContains(response, "Declined")
+        self.assertContains(response, "Cancelled")
+        self.assertNotContains(response, "Other lessor lending")
+
+    def test_overdue_indicator_only_applies_to_past_picked_up_loans(self):
+        overdue = self.make_loan(
+            LoanStatus.PICKED_UP,
+            return_date=timezone.localdate() - timedelta(days=1),
+        )
+        today_due = self.make_loan(
+            LoanStatus.PICKED_UP,
+            title="Due today",
+            return_date=timezone.localdate(),
+        )
+        self.client.force_login(self.lessor)
+
+        response = self.client.get(reverse("loans:my-lending"))
+
+        self.assertTrue(overdue.is_overdue)
+        self.assertFalse(today_due.is_overdue)
+        self.assertContains(response, "Overdue", count=1)
+
+    def test_overdue_indicator_clears_when_returned_or_completed(self):
+        loan = self.make_loan(
+            LoanStatus.PICKED_UP,
+            return_date=timezone.localdate() - timedelta(days=1),
+        )
+        self.client.force_login(self.borrower)
+        self.client.post(reverse("loans:return", kwargs={"pk": loan.pk}))
+
+        self.client.force_login(self.lessor)
+        response = self.client.get(reverse("loans:my-lending"))
+        self.assertNotContains(response, "Overdue")
+
+        self.client.post(reverse("loans:confirm-return", kwargs={"pk": loan.pk}))
+        response = self.client.get(reverse("loans:my-lending"))
+        self.assertNotContains(response, "Overdue")
+
+    def test_completed_history_shows_borrower_rating_and_completed_count(self):
+        completed = self.make_loan(LoanStatus.COMPLETED)
+        other_completed = self.make_loan(LoanStatus.COMPLETED, title="Second completion")
+        Review.objects.create(
+            loan=other_completed,
+            reviewer=self.lessor,
+            reviewee=self.borrower,
+            rating=4,
+        )
+        self.client.force_login(self.lessor)
+
+        response = self.client.get(reverse("loans:my-lending"))
+
+        self.assertContains(response, "Borrower rating: 4.0/5")
+        displayed = next(
+            loan for loan in response.context["previous_loans"] if loan.pk == completed.pk
+        )
+        self.assertEqual(displayed.borrower_completed_loan_count, 2)
+
+
+class ReviewBorrowerViewTests(TestCase):
+    def setUp(self):
+        self.lessor = User.objects.create_user(
+            email="borrower-review-lessor@case.edu",
+            password="TestPassword123!",
+            display_name="Borrower Review Lessor",
+        )
+        self.borrower = User.objects.create_user(
+            email="borrower-review-borrower@case.edu",
+            password="TestPassword123!",
+            display_name="Borrower Review Borrower",
+        )
+        self.other_user = User.objects.create_user(
+            email="borrower-review-other@case.edu",
+            password="TestPassword123!",
+            display_name="Borrower Review Other",
+        )
+        today = timezone.localdate()
+        self.listing = Listing.objects.create(
+            owner=self.lessor,
+            title="Borrower review calculator",
+            description="A completed exchange for reviewing a borrower.",
+            category=ItemCategory.ELECTRONICS,
+            condition=ItemCondition.GOOD,
+            pickup_area=CampusArea.CASE_QUAD,
+            available_from=today - timedelta(days=10),
+            available_until=today + timedelta(days=10),
+        )
+        self.loan = Loan.objects.create(
+            listing=self.listing,
+            borrower=self.borrower,
+            start_date=today - timedelta(days=2),
+            return_date=today - timedelta(days=1),
+            status=LoanStatus.COMPLETED,
+        )
+        self.review_url = reverse("loans:review-borrower", kwargs={"pk": self.loan.pk})
+
+    def test_owner_can_submit_one_review_for_completed_loan(self):
+        self.client.force_login(self.lessor)
+
+        response = self.client.post(self.review_url, {"rating": 5, "comment": "Great."})
+
+        self.assertRedirects(response, reverse("loans:my-lending"))
+        review = Review.objects.get()
+        self.assertEqual(review.reviewer, self.lessor)
+        self.assertEqual(review.reviewee, self.borrower)
+
+        response = self.client.post(self.review_url, {"rating": 3, "comment": "Again."})
+        self.assertRedirects(response, reverse("loans:my-lending"))
+        self.assertEqual(Review.objects.count(), 1)
+
+    def test_borrower_and_non_owner_cannot_review_borrower(self):
+        for user in (self.borrower, self.other_user):
+            with self.subTest(user=user):
+                self.client.force_login(user)
+                response = self.client.get(self.review_url)
+                self.assertEqual(response.status_code, 404)
+
+    def test_non_completed_loan_cannot_be_reviewed(self):
+        self.loan.status = LoanStatus.RETURNED
+        self.loan.save(update_fields=["status"])
+        self.client.force_login(self.lessor)
+
+        response = self.client.get(self.review_url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_lending_dashboard_shows_review_action_then_submitted_state(self):
+        self.client.force_login(self.lessor)
+
+        response = self.client.get(reverse("loans:my-lending"))
+        self.assertContains(response, "Review borrower")
+
+        self.client.post(self.review_url, {"rating": 5, "comment": ""})
+        response = self.client.get(reverse("loans:my-lending"))
+        self.assertContains(response, "Review submitted")
+        self.assertNotContains(response, "Review borrower")

@@ -70,4 +70,9 @@ urlpatterns = [
         views.confirm_return_view,
         name="confirm-return",
     ),
+    path(
+        "lending/<int:pk>/review-borrower/",
+        views.review_borrower,
+        name="review-borrower",
+    ),
 ]
