@@ -1,0 +1,102 @@
+<div class="row g-4">
+  {% for loan in loans %}
+    <div class="col-12">
+      <article class="bg-white border rounded p-4">
+        <div class="row g-4">
+          <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <h2 class="h5 mb-1">{{ loan.listing.title }}</h2>
+                <p class="text-secondary mb-1">
+                  Owner: {{ loan.listing.owner.get_short_name }}
+                </p>
+                <p class="small text-secondary mb-3">
+                  {% if loan.lessor_average_rating %}
+                    Lessor rating: {{ loan.lessor_average_rating|floatformat:1 }}/5
+                  {% else %}
+                    Lessor rating: No ratings yet
+                  {% endif %}
+                  ·
+                  {{ loan.lessor_completed_loan_count }}
+                  completed loan{{ loan.lessor_completed_loan_count|pluralize }}
+                </p>
+              </div>
+              <div class="d-flex flex-column align-items-end gap-2">
+                <span class="badge text-bg-secondary">
+                  {{ loan.get_status_display }}
+                </span>
+
+                {% if loan.is_overdue %}
+                  <span class="badge text-bg-danger">Overdue</span>
+                {% endif %}
+              </div>
+            </div>
+
+            <dl class="row mb-0">
+              <dt class="col-sm-3">Dates</dt>
+              <dd class="col-sm-9 mb-0">
+                {{ loan.start_date }}–{{ loan.return_date }}
+              </dd>
+            </dl>
+          </div>
+
+          <div class="col-lg-4">
+            {# Declined and cancelled requests never went anywhere, so the ladder below would just be misleading. #}
+            {% if loan.status == 'declined' or loan.status == 'cancelled' %}
+              <h3 class="h6">Progress</h3>
+              <p class="text-secondary mb-0">
+                This request was {{ loan.get_status_display|lower }} and is closed.
+              </p>
+            {% else %}
+              <h3 class="h6">Progress</h3>
+              <ol class="borrowing-progress list-unstyled mb-3">
+                <li class="{% if loan.status == 'requested' %}fw-bold{% endif %}">Requested</li>
+                <li class="{% if loan.status == 'approved' %}fw-bold{% endif %}">Approved</li>
+                <li class="{% if loan.status == 'picked_up' %}fw-bold{% endif %}">Picked Up</li>
+                <li class="{% if loan.status == 'returned' %}fw-bold{% endif %}">Returned</li>
+                <li class="{% if loan.status == 'completed' %}fw-bold{% endif %}">Completed</li>
+              </ol>
+
+              {% if loan.status == 'requested' %}
+                <form method="post" action="{% url 'loans:cancel' loan.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-outline-danger">Cancel request</button>
+                </form>
+              {% elif loan.status == 'approved' %}
+                <form method="post" action="{% url 'loans:pickup' loan.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-dark">Mark picked up</button>
+                </form>
+              {% elif loan.status == 'picked_up' %}
+                <form method="post" action="{% url 'loans:return' loan.pk %}">
+                  {% csrf_token %}
+                  <button type="submit" class="btn btn-dark">Mark returned</button>
+                </form>
+              {% elif loan.status == 'completed' %}
+                {% if loan.borrower_has_reviewed %}
+                  <p class="text-success mb-0">Review submitted</p>
+                {% else %}
+                  <a
+                    class="btn btn-dark"
+                    href="{% url 'loans:review-lessor' loan.pk %}"
+                  >
+                    Review lessor
+                  </a>
+                {% endif %}
+              {% else %}
+                <p class="text-secondary mb-0">Nothing to do right now.</p>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+      </article>
+    </div>
+  {% empty %}
+    <div class="col-12">
+      <div class="alert alert-light border mb-0">
+        {{ empty_message }}
+      </div>
+    </div>
+  {% endfor %}
+</div>
+

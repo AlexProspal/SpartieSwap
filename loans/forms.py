@@ -1,6 +1,6 @@
 from django import forms
 
-from .models import Loan
+from .models import Loan, Review
 
 
 class LoanRequestForm(forms.ModelForm):
@@ -51,4 +51,46 @@ class LoanRequestForm(forms.ModelForm):
     def _post_clean(self):
         self.instance.listing = self.listing
         self.instance.borrower = self.borrower
+        super()._post_clean()
+
+
+class ReviewForm(forms.ModelForm):
+    class Meta:
+        model = Review
+        fields = ["rating", "comment"]
+        labels = {
+            "rating": "Rating",
+            "comment": "Comment",
+        }
+        widgets = {
+            "rating": forms.Select(
+                choices=[
+                    ("", "Choose a rating"),
+                    (5, "5 - Excellent"),
+                    (4, "4 - Good"),
+                    (3, "3 - Satisfactory"),
+                    (2, "2 - Poor"),
+                    (1, "1 - Very poor"),
+                ]
+            ),
+            "comment": forms.Textarea(
+                attrs={
+                    "rows": 4,
+                    "placeholder": (
+                        "Optional: describe how the exchange with the lessor went."
+                    ),
+                }
+            ),
+        }
+
+    def __init__(self, *args, loan, reviewer, reviewee, **kwargs):
+        self.loan = loan
+        self.reviewer = reviewer
+        self.reviewee = reviewee
+        super().__init__(*args, **kwargs)
+
+    def _post_clean(self):
+        self.instance.loan = self.loan
+        self.instance.reviewer = self.reviewer
+        self.instance.reviewee = self.reviewee
         super()._post_clean()
