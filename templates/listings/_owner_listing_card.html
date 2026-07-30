@@ -1,0 +1,94 @@
+<div class="col-md-6 col-xl-4">
+  <article class="card h-100">
+    {% if listing.image %}
+      <img
+        src="{{ listing.image.url }}"
+        class="card-img-top"
+        alt="Photo of {{ listing.title }}"
+        style="height: 200px; object-fit: cover;"
+      >
+    {% endif %}
+
+    <div class="card-body d-flex flex-column">
+      <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+        <h3 class="h5 mb-0">{{ listing.title }}</h3>
+        {% if state == "Active" %}
+          <span class="badge text-bg-success">{{ state }}</span>
+        {% elif state == "Inactive" %}
+          <span class="badge text-bg-secondary">{{ state }}</span>
+        {% else %}
+          <span class="badge text-bg-primary">{{ state }}</span>
+        {% endif %}
+      </div>
+
+      <dl class="row small mb-3">
+        <dt class="col-5">Category</dt>
+        <dd class="col-7">{{ listing.get_category_display }}</dd>
+
+        <dt class="col-5">Condition</dt>
+        <dd class="col-7">{{ listing.get_condition_display }}</dd>
+
+        <dt class="col-5">Pickup area</dt>
+        <dd class="col-7">{{ listing.get_pickup_area_display }}</dd>
+
+        <dt class="col-5">Available</dt>
+        <dd class="col-7">
+          {{ listing.available_from }}–{{ listing.available_until }}
+        </dd>
+
+        <dt class="col-5">Maximum loan</dt>
+        <dd class="col-7">
+          {{ listing.maximum_loan_days }}
+          day{{ listing.maximum_loan_days|pluralize }}
+        </dd>
+      </dl>
+
+      <div class="d-flex flex-wrap gap-2 mt-auto">
+        <a
+          class="btn btn-sm btn-outline-dark"
+          href="{% url 'listings:edit' listing.pk %}"
+        >
+          Edit
+        </a>
+
+        {% if listing.is_active %}
+          <form
+            method="post"
+            action="{% url 'listings:deactivate' listing.pk %}"
+          >
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-secondary" type="submit">
+              Deactivate
+            </button>
+          </form>
+        {% else %}
+          <form
+            method="post"
+            action="{% url 'listings:reactivate' listing.pk %}"
+          >
+            {% csrf_token %}
+            <button class="btn btn-sm btn-outline-success" type="submit">
+              Reactivate
+            </button>
+          </form>
+        {% endif %}
+
+        {% if listing.has_active_exchange %}
+          <span
+            class="small text-secondary align-self-center"
+            title="Resolve the request or exchange before deleting this listing."
+          >
+            Delete unavailable
+          </span>
+        {% else %}
+          <a
+            class="btn btn-sm btn-outline-danger"
+            href="{% url 'listings:delete' listing.pk %}"
+          >
+            Delete
+          </a>
+        {% endif %}
+      </div>
+    </div>
+  </article>
+</div>
