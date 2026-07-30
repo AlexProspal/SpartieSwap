@@ -10,7 +10,7 @@ from django.utils.formats import date_format
 from accounts.constants import CampusArea
 from listings.models import ItemCategory, ItemCondition, Listing
 
-from .models import Loan, LoanStatus
+from .models import Loan, LoanStatus, Review
 
 User = get_user_model()
 
@@ -326,6 +326,287 @@ class LoanModelTests(TestCase):
         self.loan.lessor_transition_to(LoanStatus.COMPLETED)
 
         self.assertEqual(self.loan.status, LoanStatus.COMPLETED)
+
+
+class ReviewModelTests(TestCase):
+    def setUp(self):
+        self.lessor = User.objects.create_user(
+            email="review-lessor@case.edu",
+            password="TestPassword123!",
+            display_name="Review Lessor",
+        )
+        self.borrower = User.objects.create_user(
+            email="review-borrower@case.edu",
+            password="TestPassword123!",
+            display_name="Review Borrower",
+        )
+        self.outsider = User.objects.create_user(
+            email="review-outsider@case.edu",
+            password="TestPassword123!",
+            display_name="Review Outsider",
+        )
+        self.listing = Listing.objects.create(
+            owner=self.lessor,
+            title="Review Test Calculator",
+            description="A calculator used to test completed-loan reviews.",
+            category=ItemCategory.ELECTRONICS,
+            condition=ItemCondition.GOOD,
+            pickup_area=CampusArea.CASE_QUAD,
+            available_from=date(2026, 7, 25),
+            available_until=date(2026, 8, 1),
+        )
+        self.loan = Loan.objects.create(
+            listing=self.listing,
+            borrower=self.borrower,
+            start_date=date(2026, 7, 26),
+            return_date=date(2026, 7, 28),
+            status=LoanStatus.COMPLETED,
+        )
+
+    def make_review(self, **overrides):
+        values = {
+            "loan": self.loan,
+            "reviewer": self.borrower,
+            "reviewee": self.lessor,
+            "rating": 5,
+            "comment": "The exchange went smoothly.",
+        }
+        values.update(overrides)
+        return Review(**values)
+
+    def test_borrower_can_review_lessor_after_completion(self):
+        review = self.make_review()
+
+        review.full_clean()
+        review.save()
+
+        self.assertEqual(self.loan.reviews.get(), review)
+        self.assertEqual(self.borrower.reviews_written.get(), review)
+        self.assertEqual(self.lessor.reviews_received.get(), review)
+
+    def test_lessor_can_review_borrower_on_same_loan(self):
+        borrower_review = self.make_review()
+        borrower_review.full_clean()
+        borrower_review.save()
+        lessor_review = self.make_review(
+            reviewer=self.lessor,
+            reviewee=self.borrower,
+            rating=4,
+        )
+
+        lessor_review.full_clean()
+        lessor_review.save()
+
+        self.assertEqual(self.loan.reviews.count(), 2)
+
+    def test_same_participant_cannot_review_same_loan_twice(self):
+        first_review = self.make_review()
+        first_review.full_clean()
+        first_review.save()
+        duplicate_review = self.make_review(rating=3)
+
+        with self.assertRaises(ValidationError):
+            duplicate_review.full_clean()
+
+    def test_incomplete_loan_cannot_be_reviewed(self):
+        self.loan.status = LoanStatus.RETURNED
+        self.loan.save(update_fields=["status"])
+        review = self.make_review()
+
+        with self.assertRaises(ValidationError):
+            review.full_clean()
+
+    def test_outsider_cannot_write_review(self):
+        review = self.make_review(reviewer=self.outsider)
+
+        with self.assertRaises(ValidationError):
+            review.full_clean()
+
+    def test_participant_cannot_review_outsider(self):
+        review = self.make_review(reviewee=self.outsider)
+
+        with self.assertRaises(ValidationError):
+            review.full_clean()
+
+    def test_rating_must_be_between_one_and_five(self):
+        for invalid_rating in (0, 6):
+            with self.subTest(rating=invalid_rating):
+                review = self.make_review(rating=invalid_rating)
+
+                with self.assertRaises(ValidationError):
+                    review.full_clean()
+
+
+class ReviewLessorViewTests(TestCase):
+    def setUp(self):
+        self.lessor = User.objects.create_user(
+            email="view-lessor@case.edu",
+            password="TestPassword123!",
+            display_name="View Lessor",
+        )
+        self.borrower = User.objects.create_user(
+            email="view-borrower@case.edu",
+            password="TestPassword123!",
+            display_name="View Borrower",
+        )
+        self.other_user = User.objects.create_user(
+            email="view-other@case.edu",
+            password="TestPassword123!",
+            display_name="View Other",
+        )
+        self.listing = Listing.objects.create(
+            owner=self.lessor,
+            title="Reviewable Calculator",
+            description="A completed exchange ready for a lessor review.",
+            category=ItemCategory.ELECTRONICS,
+            condition=ItemCondition.GOOD,
+            pickup_area=CampusArea.CASE_QUAD,
+            available_from=date(2026, 7, 25),
+            available_until=date(2026, 8, 1),
+        )
+        self.loan = Loan.objects.create(
+            listing=self.listing,
+            borrower=self.borrower,
+            start_date=date(2026, 7, 26),
+            return_date=date(2026, 7, 28),
+            status=LoanStatus.COMPLETED,
+        )
+        self.review_url = reverse(
+            "loans:review-lessor",
+            kwargs={"pk": self.loan.pk},
+        )
+
+    def test_review_page_requires_login(self):
+        response = self.client.get(self.review_url)
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn(reverse("accounts:login"), response.url)
+
+    def test_completed_borrower_can_open_review_form(self):
+        self.client.force_login(self.borrower)
+
+        response = self.client.get(self.review_url)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Review the lessor")
+        self.assertContains(response, self.lessor.get_short_name())
+
+    def test_valid_review_is_saved_for_lessor(self):
+        self.client.force_login(self.borrower)
+
+        response = self.client.post(
+            self.review_url,
+            {
+                "rating": 5,
+                "comment": "Friendly and easy to coordinate with.",
+            },
+        )
+
+        self.assertRedirects(response, reverse("loans:my-borrowing"))
+        review = Review.objects.get()
+        self.assertEqual(review.loan, self.loan)
+        self.assertEqual(review.reviewer, self.borrower)
+        self.assertEqual(review.reviewee, self.lessor)
+        self.assertEqual(review.rating, 5)
+
+    def test_invalid_rating_does_not_create_review(self):
+        self.client.force_login(self.borrower)
+
+        response = self.client.post(
+            self.review_url,
+            {
+                "rating": 6,
+                "comment": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "Ensure this value is less than or equal to 5.",
+        )
+        self.assertFalse(Review.objects.exists())
+
+    def test_incomplete_loan_cannot_be_reviewed(self):
+        self.loan.status = LoanStatus.RETURNED
+        self.loan.save(update_fields=["status"])
+        self.client.force_login(self.borrower)
+
+        response = self.client.get(self.review_url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_other_user_cannot_review_the_loan(self):
+        self.client.force_login(self.other_user)
+
+        response = self.client.get(self.review_url)
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_second_review_attempt_redirects_without_duplicate(self):
+        Review.objects.create(
+            loan=self.loan,
+            reviewer=self.borrower,
+            reviewee=self.lessor,
+            rating=4,
+        )
+        self.client.force_login(self.borrower)
+
+        response = self.client.get(self.review_url)
+
+        self.assertRedirects(response, reverse("loans:my-borrowing"))
+        self.assertEqual(Review.objects.count(), 1)
+
+    def test_dashboard_shows_review_action_then_submitted_state(self):
+        self.client.force_login(self.borrower)
+        dashboard_url = reverse("loans:my-borrowing")
+
+        response = self.client.get(dashboard_url)
+        self.assertContains(response, "Review lessor")
+
+        self.client.post(
+            self.review_url,
+            {
+                "rating": 5,
+                "comment": "",
+            },
+        )
+        response = self.client.get(dashboard_url)
+
+        self.assertContains(response, "Review submitted")
+        self.assertNotContains(response, "Review lessor")
+
+    def test_dashboard_shows_lessor_rating_and_completed_loan_count(self):
+        other_listing = Listing.objects.create(
+            owner=self.lessor,
+            title="Second completed exchange",
+            description="Another completed loan for reliability statistics.",
+            category=ItemCategory.ELECTRONICS,
+            condition=ItemCondition.GOOD,
+            pickup_area=CampusArea.CASE_QUAD,
+            available_from=date(2026, 7, 25),
+            available_until=date(2026, 8, 1),
+        )
+        other_loan = Loan.objects.create(
+            listing=other_listing,
+            borrower=self.other_user,
+            start_date=date(2026, 7, 26),
+            return_date=date(2026, 7, 28),
+            status=LoanStatus.COMPLETED,
+        )
+        Review.objects.create(
+            loan=other_loan,
+            reviewer=self.other_user,
+            reviewee=self.lessor,
+            rating=4,
+        )
+        self.client.force_login(self.borrower)
+
+        response = self.client.get(reverse("loans:my-borrowing"))
+
+        self.assertContains(response, "Lessor rating: 4.0/5")
+        displayed_loan = response.context["previous_loans"][0]
+        self.assertEqual(displayed_loan.lessor_completed_loan_count, 2)
 
 
 class MyBorrowingViewTests(TestCase):

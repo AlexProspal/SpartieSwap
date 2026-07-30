@@ -61,6 +61,11 @@ urlpatterns = [
         name="return",
     ),
     path(
+        "borrowing/<int:pk>/review-lessor/",
+        views.review_lessor,
+        name="review-lessor",
+    ),
+    path(
         "lending/<int:pk>/confirm-return/",
         views.confirm_return_view,
         name="confirm-return",

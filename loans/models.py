@@ -1,5 +1,6 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 from django.utils.formats import date_format
@@ -124,6 +125,13 @@ class Loan(models.Model):
             return None
         return (self.return_date - self.start_date).days + 1
 
+    @property
+    def is_overdue(self):
+        return (
+            self.status == LoanStatus.PICKED_UP
+            and self.return_date < timezone.localdate()
+        )
+
     def clean(self):
         super().clean()
         errors = {}
@@ -164,6 +172,82 @@ class Loan(models.Model):
             ):
                 errors["return_date"] = (
                     "The requested loan exceeds this item's maximum loan length."
+                )
+
+        if errors:
+            raise ValidationError(errors)
+
+
+class Review(models.Model):
+    """One participant's review of the other participant in a completed loan."""
+
+    loan = models.ForeignKey(
+        Loan,
+        on_delete=models.CASCADE,
+        related_name="reviews",
+    )
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="reviews_written",
+    )
+    reviewee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="reviews_received",
+    )
+    rating = models.PositiveSmallIntegerField(
+        validators=[
+            MinValueValidator(1),
+            MaxValueValidator(5),
+        ]
+    )
+    comment = models.TextField(blank=True, max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["loan", "reviewer"],
+                name="unique_reviewer_per_loan",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(rating__gte=1, rating__lte=5),
+                name="review_rating_between_1_and_5",
+            ),
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.reviewer} rated {self.reviewee} "
+            f"{self.rating}/5 for {self.loan}"
+        )
+
+    def clean(self):
+        super().clean()
+        errors = {}
+
+        if not self.loan_id:
+            return
+
+        if self.loan.status != LoanStatus.COMPLETED:
+            errors["loan"] = "Reviews can only be submitted after a loan is completed."
+
+        if self.reviewer_id and self.reviewee_id:
+            borrower_id = self.loan.borrower_id
+            lessor_id = self.loan.listing.owner_id
+            valid_participant_pair = (
+                self.reviewer_id == borrower_id
+                and self.reviewee_id == lessor_id
+            ) or (
+                self.reviewer_id == lessor_id
+                and self.reviewee_id == borrower_id
+            )
+            if not valid_participant_pair:
+                errors["reviewer"] = (
+                    "A review must be written by one loan participant "
+                    "about the other participant."
                 )
 
         if errors:
