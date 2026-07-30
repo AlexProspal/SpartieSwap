@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+
+{% block title %}My Listings | SpartieSwap{% endblock %}
+
+{% block content %}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+  <div>
+    <h1 class="h3 mb-1">My Listings</h1>
+    <p class="text-secondary mb-0">
+      Keep your item information and availability accurate.
+    </p>
+  </div>
+  <a class="btn btn-dark" href="{% url 'listings:create' %}">
+    List an item
+  </a>
+</div>
+
+<section class="mb-5">
+  <h2 class="h4">Currently loaned or committed</h2>
+  <p class="text-secondary">
+    These listings have an approved, picked-up, or returned exchange.
+  </p>
+
+  <div class="row g-3">
+    {% for listing in currently_loaned_listings %}
+      {% include "listings/_owner_listing_card.html" with state="Currently loaned" %}
+    {% empty %}
+      <div class="col-12">
+        <div class="border rounded bg-white p-4 text-secondary">
+          No listings are currently loaned or committed.
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section class="mb-5">
+  <h2 class="h4">Active listings</h2>
+  <p class="text-secondary">
+    Borrowers can currently find these items on the Browse page.
+  </p>
+
+  <div class="row g-3">
+    {% for listing in active_listings %}
+      {% include "listings/_owner_listing_card.html" with state="Active" %}
+    {% empty %}
+      <div class="col-12">
+        <div class="border rounded bg-white p-4 text-secondary">
+          You do not have any available active listings.
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section>
+  <h2 class="h4">Inactive listings</h2>
+  <p class="text-secondary">
+    These items are hidden from borrowers until you reactivate them.
+  </p>
+
+  <div class="row g-3">
+    {% for listing in inactive_listings %}
+      {% include "listings/_owner_listing_card.html" with state="Inactive" %}
+    {% empty %}
+      <div class="col-12">
+        <div class="border rounded bg-white p-4 text-secondary">
+          You do not have any inactive listings.
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}
