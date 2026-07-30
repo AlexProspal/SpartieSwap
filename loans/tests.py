@@ -888,7 +888,7 @@ class MyLendingViewTests(TestCase):
         self.assertContains(response, self.borrower.display_name)
         self.assertContains(response, "Case Quad")
         self.assertNotContains(response, other_listing.title)
-        self.assertNotContains(response, completed_listing.title)
+        self.assertContains(response, completed_listing.title)
 
     def test_confirm_return_button_only_appears_for_returned_loans(self):
         self.client.force_login(self.lessor)
